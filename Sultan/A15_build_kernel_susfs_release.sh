@@ -22,20 +22,33 @@ git clone --recursive https://github.com/TheWildJames/android_kernel_google_zuma
 git clone https://github.com/TheWildJames/AnyKernel3.git -b 15.0.0-sultan
 git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-5.15
 
-echo "Applying SUSFS patches..."
+echo "Fixing Patches"
+cd ./susfs4ksu
+
+sed -i '/struct new_utsname tmp;/c\    struct new_utsname tmp;\n    struct task_struct *t;\n    bool is_gms = false;' ./kernel_patches/50_add_susfs_in_gki-android14-5.15.patch
+sed -i '/if (copy_to_user(name, &tmp, sizeof(tmp)))/,/return -EFAULT;/d' ./kernel_patches/50_add_susfs_in_gki-android14-5.15.patch
+sed -i '/up_read(&uts_sem);/c\    up_read(&uts_sem);\n    \n    rcu_read_lock();' ./kernel_patches/50_add_susfs_in_gki-android14-5.15.patch
+sed -i 's/@@ -1297,12 +1297,23 @@/@@ -1297,14 +1297,25 @@/' ./kernel/patches/50_add_susfs_in_gki-android14-5.15.patch
+sed -i 's/android_kabi_reserved2/android_kabi_reserved1/g' ./kernel_patches/50_add_susfs_in_gki-android14-5.15.patch
+sed -i 's/android_kabi_reserved2/android_kabi_reserved1/g' ./kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch
+cd ..
+
+echo "Applying KernelSU..."
 cd ./android_kernel_google_zuma
+curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
+
+echo "Applying SUSFS patches..."
 cp ../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU/
 cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-5.15.patch ./
 cp ../susfs4ksu/kernel_patches/fs/susfs.c ./fs/
 cp ../susfs4ksu/kernel_patches/include/linux/susfs.h ./include/linux/
-cp ../susfs4ksu/kernel_patches/fs/sus_su.c ./fs/
-cp ../susfs4ksu/kernel_patches/include/linux/sus_su.h ./include/linux/
 
 # Apply the patches
 cd ./KernelSU
 patch -p1 --fuzz=3 < 10_enable_susfs_for_ksu.patch
 cd ..
 patch -p1 --fuzz=3 < 50_add_susfs_in_gki-android14-5.15.patch
+patch -p1 < ./ksu_hooks.patch
 
 # Add configuration settings for SUSFS
 echo "Adding configuration settings to gki_defconfig..."
@@ -50,9 +63,9 @@ echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" >> ./arch/arm64/configs/gki_defconfig
 echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> ./arch/arm64/configs/gki_defconfig
 echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> ./arch/arm64/configs/gki_defconfig
 echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> ./arch/arm64/configs/gki_defconfig
-echo "CONFIG_KPROBES=y" >> ./arch/arm64/configs/gki_defconfig
-echo "CONFIG_HAVE_KPROBES=y" >> ./arch/arm64/configs/gki_defconfig
-echo "CONFIG_KPROBE_EVENTS=y" >> ./arch/arm64/configs/gki_defconfig
+echo "CONFIG_KPROBES=n" >> ./arch/arm64/configs/gki_defconfig
+echo "CONFIG_HAVE_KPROBES=n" >> ./arch/arm64/configs/gki_defconfig
+echo "CONFIG_KPROBE_EVENTS=n" >> ./arch/arm64/configs/gki_defconfig
 
 # Compile the kernel
 echo "Compiling the kernel..."
